@@ -8,21 +8,20 @@ import (
 	"os"
 )
 
-type mnist_hparams struct{
-	n_input int32;
-	n_hidden int32;
-	n_classes int32;
+type mnist_hparams struct {
+	n_input   int32
+	n_hidden  int32
+	n_classes int32
 }
 
 type mnist_model struct {
-	hparams mnist_hparams;
+	hparams mnist_hparams
 
-	fc1_weight *ml.Tensor;
-	fc1_bias *ml.Tensor;
+	fc1_weight *ml.Tensor
+	fc1_bias   *ml.Tensor
 
-	fc2_weight *ml.Tensor;
-	fc2_bias *ml.Tensor;
-
+	fc2_weight *ml.Tensor
+	fc2_bias   *ml.Tensor
 }
 
 func mnist_model_load(fname string, model *mnist_model) error {
@@ -32,7 +31,6 @@ func mnist_model_load(fname string, model *mnist_model) error {
 		return err
 	}
 	defer file.Close()
-
 
 	// verify magic
 	{
@@ -54,7 +52,7 @@ func mnist_model_load(fname string, model *mnist_model) error {
 		model.hparams.n_hidden = ne_weight[1]
 
 		model.fc1_weight = ml.NewTensor2D(nil, ml.TYPE_F32, uint32(model.hparams.n_input), uint32(model.hparams.n_hidden))
-		for i := 0; i < len(model.fc1_weight.Data); i++{
+		for i := 0; i < len(model.fc1_weight.Data); i++ {
 			model.fc1_weight.Data[i] = readFP32(file)
 		}
 
@@ -81,7 +79,7 @@ func mnist_model_load(fname string, model *mnist_model) error {
 		model.hparams.n_classes = ne_weight[1]
 
 		model.fc2_weight = ml.NewTensor2D(nil, ml.TYPE_F32, uint32(model.hparams.n_hidden), uint32(model.hparams.n_classes))
-		for i := 0; i < len(model.fc2_weight.Data); i++{
+		for i := 0; i < len(model.fc2_weight.Data); i++ {
 			model.fc2_weight.Data[i] = readFP32(file)
 		}
 
@@ -112,7 +110,7 @@ func mnist_eval(model *mnist_model, threadCount int, digit []float32) int {
 	// fc1 MLP = Ax + b
 	fc1 := ml.Add(ctx0, ml.MulMat(ctx0, model.fc1_weight, input), model.fc1_bias)
 	fc2 := ml.Add(ctx0, ml.MulMat(ctx0, model.fc2_weight, ml.Relu(ctx0, fc1)), model.fc2_bias)
-	
+
 	// softmax
 	final := ml.SoftMax(ctx0, fc2)
 
@@ -123,7 +121,7 @@ func mnist_eval(model *mnist_model, threadCount int, digit []float32) int {
 	printTensor(final, "final tensor")
 
 	maxIndex := 0
-	for i := 0; i < 10; i++{
+	for i := 0; i < 10; i++ {
 		if final.Data[i] > final.Data[maxIndex] {
 			maxIndex = i
 		}
@@ -131,7 +129,7 @@ func mnist_eval(model *mnist_model, threadCount int, digit []float32) int {
 	return maxIndex
 }
 
-func ExpandGraph(model *mnist_model, threadCount int, digit []float32) (*ml.Graph, *ml.Context) {
+func ExpandGraph(model *mnist_model, threadCount int, digit []float32) (*ml.Graph, *ml.Context, error) {
 	ctx0 := &ml.Context{}
 	graph := ml.Graph{ThreadsCount: threadCount}
 
@@ -141,13 +139,13 @@ func ExpandGraph(model *mnist_model, threadCount int, digit []float32) (*ml.Grap
 	// fc1 MLP = Ax + b
 	fc1 := ml.Add(ctx0, ml.MulMat(ctx0, model.fc1_weight, input), model.fc1_bias)
 	fc2 := ml.Add(ctx0, ml.MulMat(ctx0, model.fc2_weight, ml.Relu(ctx0, fc1)), model.fc2_bias)
-	
+
 	// softmax
 	final := ml.SoftMax(ctx0, fc2)
 
 	// run the computation
 	ml.BuildForwardExpand(&graph, final)
-	return &graph, ctx0
+	return &graph, ctx0, nil
 }
 
 func LoadModel(modeFile string) (*mnist_model, error) {
@@ -172,7 +170,6 @@ func readString(file *os.File, len uint32) string {
 	}
 	return string(buf)
 }
-
 
 func readFP32(file *os.File) float32 {
 	buf := make([]byte, 4)
@@ -213,6 +210,6 @@ func printTensor(tensor *ml.Tensor, name string) {
 	}
 }
 
-func main(){
+func main() {
 	fmt.Println("hello world")
 }

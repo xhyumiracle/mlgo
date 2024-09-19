@@ -37,7 +37,7 @@ const (
 
 // compute in Single thread
 var (
-	SINGLE_THREAD = false
+	SINGLE_THREAD = true
 )
 
 func printTensor(tensor *Tensor, name string) {
@@ -459,7 +459,7 @@ func ReluImpl(ctx *Context, a *Tensor, inplace bool) *Tensor {
 
 	result.op = OP_RELU
 	result.Src0 = a
-	result.Src1 = nil 
+	result.Src1 = nil
 
 	if isNode {
 		result.grad = DupTensor(ctx, result)
@@ -1604,8 +1604,6 @@ func GraphCompute(ctx *Context, graph *Graph) {
 
 }
 
-
-
 // =======================================================================
 
 func ComputeForward(graph *Graph, params *ComputeParams, tensor *Tensor) {
@@ -1692,7 +1690,6 @@ func ComputeForward(graph *Graph, params *ComputeParams, tensor *Tensor) {
 
 			wg := new(sync.WaitGroup)
 			wg.Add(graph.ThreadsCount)
-
 			for i := 0; i < graph.ThreadsCount; i++ {
 				graph.Jobs <- &ComputeParams{
 					Type:   TASK_COMPUTE,
@@ -1938,23 +1935,23 @@ func VecReluFP32(n uint32, y, x []float32) {
 
 func ComputeForwardReluFP32(params *ComputeParams, src0, dst *Tensor) {
 	// assert(params->ith == 0);
-    // assert(ggml_are_same_shape(src0, dst));
+	// assert(ggml_are_same_shape(src0, dst));
 	if !AreSameShape(src0, dst) {
 		fmt.Printf("\n[HALT] ComputeForwardReluFP32 : different shapes!")
 		os.Exit(1)
 	}
 
 	if params.Type == TASK_INIT || params.Type == TASK_FINALIZE {
-		return 
+		return
 	}
 
 	n := src0.Nrows()
 	nc := src0.NE[0]
 
 	// assert(dst->nb[0]  == sizeof(float));
-    // assert(src0->nb[0] == sizeof(float));
+	// assert(src0->nb[0] == sizeof(float));
 
-	for i := uint32(0); i < n; i++{
+	for i := uint32(0); i < n; i++ {
 		// ggml_vec_relu_f32(nc,
 		// 	(float *) ((char *) dst->data  + i*( dst->nb[1])),
 		// 	(float *) ((char *) src0->data + i*(src0->nb[1])));
@@ -2979,8 +2976,7 @@ func Init(params InitParams) {
 
 }
 
-
-func PrintTensor(tensor *Tensor, name string) {
+func PrintTensorNoPeak(tensor *Tensor, name string) {
 	var dt string
 	if tensor.Type == TYPE_F16 {
 		dt = "FP16"
@@ -2992,8 +2988,26 @@ func PrintTensor(tensor *Tensor, name string) {
 		dt = "INT4"
 	}
 
-	fmt.Printf("\n\n=== [ %s | %s | %d:%d:%d ] ===\n",
-		name, dt, tensor.NE[0], tensor.NE[1], tensor.NE[2])
+	fmt.Printf("=== [ %s | %3d | %s | %d | %d:%d:%d | %d ] ===\n",
+		name, tensor.op, dt, tensor.Dims, tensor.NE[0], tensor.NE[1], tensor.NE[2], len(tensor.Data))
+	if tensor.Src0 != nil {
+		// fmt.Printf("~~~~~~~", tensor.Src0)
+		fmt.Printf("   --- [ %s | %d | %d:%d:%d | %d ] ===\n",
+			name+".Src0", tensor.Src0.Dims, tensor.Src0.NE[0], tensor.Src0.NE[1], tensor.Src0.NE[2], len(tensor.Src0.Data))
+	}
+	if tensor.Src1 != nil {
+		// fmt.Printf("~~~~~~~", tensor.Src1)
+		fmt.Printf("   --- [ %s | %d | %d:%d:%d | %d ] ===\n",
+			name+".Src1", tensor.Src1.Dims, tensor.Src1.NE[0], tensor.Src1.NE[1], tensor.Src1.NE[2], len(tensor.Src1.Data))
+	}
+	// fmt.Printf("  ")
+	// PrintTensorNoPeak(tensor.Src1, name+".Src1")
+}
+
+func PrintTensor(tensor *Tensor, name string) {
+
+	fmt.Printf("\n\n")
+	PrintTensorNoPeak(tensor, name)
 
 	for nn := 0; nn < min(12, int(tensor.NE[1])); nn++ {
 		fmt.Printf("\n %d x %d ...\t", nn, tensor.NE[0])
@@ -3001,5 +3015,15 @@ func PrintTensor(tensor *Tensor, name string) {
 			fmt.Printf("%.3f\t", tensor.Data[nn*int(tensor.NE[0])+ii])
 		}
 	}
+	fmt.Println("")
+}
+
+func PrintGraph(graph *Graph, name string) {
+	fmt.Println("\n=== Print Graph Start: ", name, "===\n")
+	for i := 0; i < int(graph.NodesCount); i++ {
+		fmt.Printf("|")
+		PrintTensorNoPeak(graph.Nodes[i], fmt.Sprintf("%s.node_%d", name, i))
+	}
+	fmt.Println("\n=== Print Graph End ===")
 	fmt.Println("")
 }
